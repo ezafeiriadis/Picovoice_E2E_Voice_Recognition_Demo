@@ -20,10 +20,14 @@
 #include "pv_keywords.h"
 #include "pv_picovoice.h"
 #include "pv_psoc6.h"
+#include "faceMe.h"
+#include "turnDegrees.h"
+#include "comeCloser.h"
 
 #define MEMORY_BUFFER_SIZE (70 * 1024)
 
-static const char* ACCESS_KEY = ... // AccessKey string obtained from Picovoice Console (https://picovoice.ai/console/)
+static const char* ACCESS_KEY = "euUgfv3MUOlJk9OvEw8ihc5eMMhoX9OcgTZvx3L5fXh5f6oqhTB3Nw=="; // AccessKey string obtained from Picovoice Console (https://picovoice.ai/console/)
+static const char* LEFT = "left";
 
 static int8_t memory_buffer[MEMORY_BUFFER_SIZE] __attribute__((aligned(16)));
 
@@ -39,17 +43,37 @@ static void inference_callback(pv_inference_t *inference) {
     cy_rgb_led_on(CY_RGB_LED_COLOR_BLUE, CY_RGB_LED_MAX_BRIGHTNESS);
 
     printf("{\r\n");
-    printf("\tis_understood : '%s',\r\n", (inference->is_understood ? "true" : "false"));
+    printf("\tis_understood: '%s',\r\n", (inference->is_understood ? "true" : "false"));
+
+    int rotation = 0;
+
     if (inference->is_understood) {
         printf("\tintent : '%s',\r\n", inference->intent);
-        if (inference->num_slots > 0) {
+        if (strcmp(inference->intent, "faceMe") == 0){
+        	faceMe();
+        }
+        else if (strcmp(inference->intent, "comeCloser") == 0){
+			comeCloser();
+		}
+        else if (strcmp(inference->intent, "turnDegrees") == 0){
+
             printf("\tslots : {\r\n");
-            for (int32_t i = 0; i < inference->num_slots; i++) {
-                printf("\t\t'%s' : '%s',\r\n", inference->slots[i], inference->values[i]);
+			printf("\t\t'%s' : '%s',\r\n", inference->slots[0], inference->values[0]);
+			printf("\t\t'%s' : '%s',\r\n", inference->slots[1], inference->values[1]);
+
+			// If rotation is 'left', then direction is 1, if it is 'right', then direction is 0
+			if (strcmp(inference->values[1], LEFT)){
+				rotation = 0;
+			}
+			else{
+				rotation = 1;
+			}
+
+			turnDegrees(inference->values[0], rotation);
+
             }
             printf("\t}\r\n");
         }
-    }
     printf("}\r\n\n");
 
     for (int32_t i = 0; i < 10; i++) {
