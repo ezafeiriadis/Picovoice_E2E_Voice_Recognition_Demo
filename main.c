@@ -23,6 +23,7 @@
 #include "faceMe.h"
 #include "turnDegrees.h"
 #include "comeCloser.h"
+#include "degreesToDutyCycle.h"
 
 #define MEMORY_BUFFER_SIZE (70 * 1024)
 
