@@ -9,9 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wordToNumber.h>
-#include "cy_pdl.h"
-#include "cyhal.h"
-#include "cybsp.h"
 
 #ifndef INCLUDE_TURNDEGREES_H_
 #define INCLUDE_TURNDEGREES_H_

@@ -52,7 +52,7 @@ float convertDegreesToDutyCycle(float degrees){
 
 void pwm_init(){
 	/* Initialize PWM on the supplied pin and assign a new clock */
-	result = cyhal_pwm_init(&pwm_obj_d9, CYBSP_D9, NULL);
+	result = cyhal_pwm_init(&pwm_obj_d9, CYBSP_USER_LED, NULL);
 }
 
 static void inference_callback(pv_inference_t *inference) {
@@ -99,7 +99,7 @@ static void inference_callback(pv_inference_t *inference) {
 
 			result = cyhal_pwm_start(&pwm_obj_d9);
 
-			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, dutyCycle, 50);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, dutyCycle, 2);
 
 			// This is the PWM end
 
