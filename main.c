@@ -14,7 +14,9 @@
 #include <stdlib.h>
 
 #include "cy_rgb_led.h"
+#include "cy_pdl.h"
 #include "cybsp.h"
+#include "cyhal.h"
 
 #include "pv_audio_rec.h"
 #include "pv_keywords.h"
@@ -35,9 +37,22 @@ static int8_t memory_buffer[MEMORY_BUFFER_SIZE] __attribute__((aligned(16)));
 static const float PORCUPINE_SENSITIVITY = 0.75f;
 static const float RHINO_SENSITIVITY = 0.5f;
 
+// This is the PWM initialization end
+cy_rslt_t result;
+cyhal_pwm_t pwm_obj_d9;
+
 static void wake_word_callback(void) {
     printf("[wake word]\r\n");
     cy_rgb_led_on(CY_RGB_LED_COLOR_GREEN, CY_RGB_LED_MAX_BRIGHTNESS);
+}
+
+float convertDegreesToDutyCycle(float degrees){
+    return degrees / 180 * 100;
+}
+
+void pwm_init(){
+	/* Initialize PWM on the supplied pin and assign a new clock */
+	result = cyhal_pwm_init(&pwm_obj_d9, CYBSP_D9, NULL);
 }
 
 static void inference_callback(pv_inference_t *inference) {
@@ -70,7 +85,23 @@ static void inference_callback(pv_inference_t *inference) {
 				rotation = 1;
 			}
 
-			turnDegrees(inference->values[0], rotation);
+			int degrees = turnDegrees(inference->values[0]);
+
+			printf("\nI returned the index in main: '%d'\n\n", degrees);
+
+			float dutyCycle = convertDegreesToDutyCycle(degrees);
+
+			printf("\nI found the Duty Cycle in main: '%f'\n\n", dutyCycle);
+			printf("\nI found the rotation in main: '%d'\n\n", rotation);
+
+			// This is the PWM start
+			/* Start the PWM output */
+
+			result = cyhal_pwm_start(&pwm_obj_d9);
+
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, dutyCycle, 50);
+
+			// This is the PWM end
 
             }
             printf("\t}\r\n");
@@ -96,6 +127,7 @@ static void error_handler(void) {
 
 int main(void) {
     pv_status_t status = pv_board_init();
+    pwm_init();
     if (status != PV_STATUS_SUCCESS) {
         error_handler();
     }
