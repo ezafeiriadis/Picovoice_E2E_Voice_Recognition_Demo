@@ -40,6 +40,10 @@ static const float RHINO_SENSITIVITY = 0.5f;
 // This is the PWM initialization end
 cy_rslt_t result;
 cyhal_pwm_t pwm_obj_d9;
+cyhal_pwm_t pwm_obj_d10;
+cyhal_pwm_t pwm_obj_d11;
+
+int current_position;
 
 static void wake_word_callback(void) {
     printf("[wake word]\r\n");
@@ -52,7 +56,9 @@ float convertDegreesToDutyCycle(float degrees){
 
 void pwm_init(){
 	/* Initialize PWM on the supplied pin and assign a new clock */
-	result = cyhal_pwm_init(&pwm_obj_d9, CYBSP_USER_LED, NULL);
+	result = cyhal_pwm_init(&pwm_obj_d9, CYBSP_D9, NULL);
+	result = cyhal_pwm_init(&pwm_obj_d10, CYBSP_D10, NULL);
+	result = cyhal_pwm_init(&pwm_obj_d11, CYBSP_D11, NULL);
 }
 
 static void inference_callback(pv_inference_t *inference) {
@@ -64,49 +70,110 @@ static void inference_callback(pv_inference_t *inference) {
     int rotation = 0;
 
     if (inference->is_understood) {
-        printf("\tintent : '%s',\r\n", inference->intent);
-        if (strcmp(inference->intent, "faceMe") == 0){
-        	faceMe();
+
+        if (strcmp(inference->intent, "goHome") == 0){
+        	// for smaller turning angles the TV wall mount would have to be fully folded
+
+        	// TV motor
+			result = cyhal_pwm_start(&pwm_obj_d9);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, 7, 50);
+			// Bottom motor
+			result = cyhal_pwm_start(&pwm_obj_d11);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d11, 5, 50);
+			// Top motor
+			result = cyhal_pwm_start(&pwm_obj_d10);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d10, 7, 50);
         }
         else if (strcmp(inference->intent, "comeCloser") == 0){
-			comeCloser();
+        	// Bottom motor
+			result = cyhal_pwm_start(&pwm_obj_d11);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d11, 2, 50);
+			// Top motor
+			result = cyhal_pwm_start(&pwm_obj_d10);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d10, 5, 50);
 		}
-        else if (strcmp(inference->intent, "turnDegrees") == 0){
+        else if (strcmp(inference->intent, "turnPositionRot") == 0){
 
-            printf("\tslots : {\r\n");
-			printf("\t\t'%s' : '%s',\r\n", inference->slots[0], inference->values[0]);
-			printf("\t\t'%s' : '%s',\r\n", inference->slots[1], inference->values[1]);
-
-			// If rotation is 'left', then direction is 1, if it is 'right', then direction is 0
+			// If rotation is 'left', then direction is 1, if it is 'right', then direction is -1
+			// so that the servo moves the current position left or right
 			if (strcmp(inference->values[1], LEFT)){
-				rotation = 0;
-			}
-			else{
 				rotation = 1;
 			}
+			else{
+				rotation = -1;
+			}
+			// Picovoice returns a string value that we have to convert to an integer (that's what turnDegrees does)
+			int number_of_positions = turnDegrees(inference->values[0]);
 
-			int degrees = turnDegrees(inference->values[0]);
+			current_position = current_position + rotation * number_of_positions;
 
-			printf("\nI returned the index in main: '%d'\n\n", degrees);
-
-			float dutyCycle = convertDegreesToDutyCycle(degrees);
-
-			printf("\nI found the Duty Cycle in main: '%f'\n\n", dutyCycle);
-			printf("\nI found the rotation in main: '%d'\n\n", rotation);
+			if (current_position > 12){
+				// If the current position is 12 and someone says move 2 positions right,
+				// then the current position would be 14 which is not a legal move
+				current_position = 12;
+			}
+			else if (current_position <= 0){
+				// If the current position is 1 and someone says move 2 positions left,
+				// then the current position would be -1 which is not a legal move
+				current_position = 1;
+			}
 
 			// This is the PWM start
 			/* Start the PWM output */
 
 			result = cyhal_pwm_start(&pwm_obj_d9);
 
-			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, dutyCycle, 2);
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, current_position, 50);
 
+			// This is the PWM end
+        }
+        else if (strcmp(inference->intent, "turnToPosition") == 0){
+
+			int position = turnDegrees(inference->values[0]);
+
+			// If the user wants the TV to move to an illegal position > 12 then we move
+			// the TV to the largest legal position which is position 12
+			if (position > 11){
+				position = 11;
+			}
+
+			// This is the PWM start
+			/* Start the PWM output */
+			if (position >= 9 || position <= 3){
+				// for large turning angles the TV wall mount would have to be fully unfolded
+				// in order for the TV not to hit the wall
+				// Bottom motor
+				result = cyhal_pwm_start(&pwm_obj_d11);
+				result = cyhal_pwm_set_duty_cycle(&pwm_obj_d11, 3, 50);
+				// Top motor
+				result = cyhal_pwm_start(&pwm_obj_d10);
+				result = cyhal_pwm_set_duty_cycle(&pwm_obj_d10, 5, 50);
+			}
+			else{
+				// for smaller turning angles the TV wall mount would have to be partially unfolded
+				// in order for the TV not to hit the wall
+				// Bottom motor
+				result = cyhal_pwm_start(&pwm_obj_d11);
+				result = cyhal_pwm_set_duty_cycle(&pwm_obj_d11, 5, 50);
+				// Top motor
+				result = cyhal_pwm_start(&pwm_obj_d10);
+				result = cyhal_pwm_set_duty_cycle(&pwm_obj_d10, 7, 50);
+			}
+
+			// The Servo we chose can only move in steps from Duty Cycle = 2-12, so for us
+			// min position 1--> = Duty Cycle 2 and max position 11 --> Duty Cycle = 12
+			position = position + 1;
+
+			current_position = position;
+
+			result = cyhal_pwm_start(&pwm_obj_d9);
+
+			result = cyhal_pwm_set_duty_cycle(&pwm_obj_d9, position, 50);
 			// This is the PWM end
 
             }
-            printf("\t}\r\n");
+
         }
-    printf("}\r\n\n");
 
     for (int32_t i = 0; i < 10; i++) {
         if (cy_rgb_led_get_brightness() == 0) {
